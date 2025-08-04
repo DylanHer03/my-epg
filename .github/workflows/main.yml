@@ -43,7 +43,7 @@ jobs:
       - name: Install WebGrab+Plus silently
         shell: pwsh
         run: |
-          Start-Process -FilePath "tools\WebGrabPlus_Setup.exe" `
+          Start-Process -FilePath "tools\WebGrabPlus_V5.3_install.exe" `
             -ArgumentList "/VERYSILENT", "/DIR=WebGrabPlus" `
             -Wait
 
