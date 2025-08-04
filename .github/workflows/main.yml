@@ -1,83 +1,73 @@
 name: Daily EPG Update with VPN
 
 on:
-
-# Manual trigger
-
-workflow\_dispatch:
-
-# Runs every day at 01:00 UTC
-
-schedule:
-\- cron: '0 1 \* \* \*'
+  workflow_dispatch:
 
 jobs:
-update-epg:
-runs-on: windows-latest
+  update-epg:
+    runs-on: windows-latest
 
-```
-steps:
-  - name: Checkout repository
-    uses: actions/checkout@v3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-  - name: Setup .NET 8.0 Runtime
-    uses: actions/setup-dotnet@v3
-    with:
-      dotnet-version: '8.0.x'
+      - name: Setup .NET 8.0 Runtime
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
 
-  - name: Install OpenVPN
-    shell: pwsh
-    run: choco install openvpn --yes
+      - name: Install OpenVPN
+        shell: pwsh
+        run: choco install openvpn --yes
 
-  - name: Create Surfshark OVPN file
-    shell: pwsh
-    run: |
-      $ovpn = '${{ secrets.SURFSHARK_OVPN }}'
-      Set-Content -Path surfshark.ovpn -Value $ovpn -Encoding ASCII
+      - name: Create Surfshark OVPN file
+        shell: pwsh
+        run: |
+          $ovpn = '${{ secrets.SURFSHARK_OVPN }}'
+          Set-Content -Path surfshark.ovpn -Value $ovpn -Encoding ASCII
 
-  - name: Create Surfshark auth file
-    shell: pwsh
-    run: |
-      $cred = "${{ secrets.SURFSHARK_USER }}`n${{ secrets.SURFSHARK_PASS }}"
-      Set-Content -Path surfshark.auth -Value $cred -Encoding ASCII
+      - name: Create Surfshark auth file
+        shell: pwsh
+        run: |
+          $cred = "${{ secrets.SURFSHARK_USER }}`n${{ secrets.SURFSHARK_PASS }}"
+          Set-Content -Path surfshark.auth -Value $cred -Encoding ASCII
 
-  - name: Start OpenVPN
-    shell: pwsh
-    run: |
-      Start-Process -FilePath "C:\Program Files\OpenVPN\bin\openvpn.exe" \
-        -ArgumentList "--config surfshark.ovpn --auth-user-pass surfshark.auth --silent --daemon" \
-        -NoNewWindow
-      Start-Sleep -Seconds 15
+      - name: Start OpenVPN
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "C:\Program Files\OpenVPN\bin\openvpn.exe" `
+            -ArgumentList "--config surfshark.ovpn --auth-user-pass surfshark.auth --silent --daemon" `
+            -NoNewWindow
+          Start-Sleep -Seconds 15
 
-  - name: Download WebGrab+Plus
-    shell: pwsh
-    run: |
-      Invoke-WebRequest -Uri https://github.com/DownloadManager/WebGrabPlus/releases/download/v5.3.0.0/WebGrab+Plus_bin.zip -OutFile WebGrabPlus.zip
-      Expand-Archive WebGrabPlus.zip -DestinationPath WebGrabPlus
+      - name: Download WebGrab+Plus
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/DownloadManager/WebGrabPlus/releases/download/v5.3.0.0/WebGrab+Plus_bin.zip -OutFile WebGrabPlus.zip
+          Expand-Archive WebGrabPlus.zip -DestinationPath WebGrabPlus
 
-  - name: Run WebGrab+Plus to regenerate EPG
-    shell: pwsh
-    working-directory: WebGrabPlus\bin
-    run: .\WebGrab+Plus.exe
+      - name: Run WebGrab+Plus to regenerate EPG
+        shell: pwsh
+        working-directory: WebGrabPlus\bin
+        run: .\WebGrab+Plus.exe
 
-  - name: Copy EPG XML into repo root
-    shell: pwsh
-    run: Copy-Item -Path WebGrabPlus\output\ecuador.xml -Destination epg.xml -Force
+      - name: Copy EPG XML into repo root
+        shell: pwsh
+        run: Copy-Item -Path WebGrabPlus\output\ecuador.xml -Destination epg.xml -Force
 
-  - name: Commit and push changes
-    shell: pwsh
-    run: |
-      git config user.name "github-actions[bot]"
-      git config user.email "github-actions[bot]@users.noreply.github.com"
-      git add epg.xml
-      if (-not (git diff --quiet --cached)) {
-        git commit -m "Daily EPG update $(Get-Date -Format o)"
-        git push
-      }
+      - name: Commit and push changes
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epg.xml
+          if (-not (git diff --quiet --cached)) {
+            git commit -m "Daily EPG update $(Get-Date -Format o)"
+            git push
+          }
 
-  - name: Stop OpenVPN
-    if: always()
-    shell: pwsh
-    run: |
-      Get-Process openvpn* -ErrorAction SilentlyContinue | Stop-Process -Force
-```
+      - name: Stop OpenVPN
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process openvpn* -ErrorAction SilentlyContinue | Stop-Process -Force
