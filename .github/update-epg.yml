@@ -1,0 +1,46 @@
+name: Daily EPG Update
+
+on:
+  schedule:
+    # ogni giorno alle 01:00 UTC
+    - cron: '0 1 * * *'
+
+jobs:
+  update-epg:
+    # specifica il tuo runner self-hosted etichettato "vpn-runner"
+    runs-on: [self-hosted, windows, vpn-runner]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET 8.0 Runtime
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download WebGrab+Plus
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/DownloadManager/WebGrabPlus/releases/download/v5.3.0.0/WebGrab+Plus_bin.zip -OutFile WebGrabPlus.zip
+          Expand-Archive WebGrabPlus.zip -DestinationPath WebGrabPlus
+
+      - name: Run WebGrab+Plus to regenerate EPG
+        shell: pwsh
+        working-directory: WebGrabPlus\bin
+        run: .\WebGrab+Plus.exe
+
+      - name: Copy EPG XML into repo root
+        shell: pwsh
+        run: Copy-Item WebGrabPlus\output\ecuador.xml -Destination epg.xml -Force
+
+      - name: Commit and push changes
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add epg.xml
+          if (-not (git diff --quiet --cached)) {
+            git commit -m "Daily EPG update $(Get-Date -Format o)"
+            git push
+          }
