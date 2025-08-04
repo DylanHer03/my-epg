@@ -1,14 +1,12 @@
-name: Daily EPG Update
+name: Daily EPG Update with VPN
 
 on:
   schedule:
-    # ogni giorno alle 01:00 UTC
-    - cron: '0 1 * * *'
+    - cron: '0 1 * * *'  # ogni giorno alle 01:00 UTC
 
 jobs:
   update-epg:
-    # specifica il tuo runner self-hosted etichettato "vpn-runner"
-    runs-on: [self-hosted, windows, vpn-runner]
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -18,6 +16,30 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '8.0.x'
+
+      - name: Install OpenVPN
+        shell: pwsh
+        run: choco install openvpn --yes
+
+      - name: Create Surfshark OVPN file
+        shell: pwsh
+        run: |
+          $ovpn = '${{ secrets.SURFSHARK_OVPN }}'
+          Set-Content -Path surfshark.ovpn -Value $ovpn -Encoding ASCII
+
+      - name: Create Surfshark auth file
+        shell: pwsh
+        run: |
+          $cred = "${{ secrets.SURFSHARK_USER }}`n${{ secrets.SURFSHARK_PASS }}"
+          Set-Content -Path surfshark.auth -Value $cred -Encoding ASCII
+
+      - name: Start OpenVPN
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "C:\Program Files\OpenVPN\bin\openvpn.exe" `
+            -ArgumentList "--config surfshark.ovpn --auth-user-pass surfshark.auth --silent --daemon" `
+            -NoNewWindow
+          Start-Sleep -Seconds 15
 
       - name: Download WebGrab+Plus
         shell: pwsh
@@ -32,7 +54,7 @@ jobs:
 
       - name: Copy EPG XML into repo root
         shell: pwsh
-        run: Copy-Item WebGrabPlus\output\ecuador.xml -Destination epg.xml -Force
+        run: Copy-Item -Path WebGrabPlus\output\ecuador.xml -Destination epg.xml -Force
 
       - name: Commit and push changes
         shell: pwsh
@@ -44,3 +66,9 @@ jobs:
             git commit -m "Daily EPG update $(Get-Date -Format o)"
             git push
           }
+
+      - name: Stop OpenVPN
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process openvpn* -ErrorAction SilentlyContinue | Stop-Process -Force
